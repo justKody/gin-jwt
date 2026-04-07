@@ -78,7 +78,8 @@ func SignUp() gin.HandlerFunc {
 		user.Refresh_token = &refreshToken
 
 		resultInsertionNumber, insertErr := userCollection.InsertOne(ctx, user)
-
+ 
+		
 		if insertErr != nil {
 			msg := fmt.Sprintf("User item was not created")
 			c.JSON(http.StatusInternalServerError, gin.h{"error": msg})
