@@ -21,6 +21,27 @@ import (
 var userCollection *mongo.Collection = database.OpenCollection(database.Client, "users")
 var validate = validator.New()
 
+func HashPassword(password string) string {
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), 14)
+	if err != nil {
+		log.Panic(err)
+	}
+	return string(hashedPassword)
+}
+
+func VerifyPassword(userPassword string, providedPassword string) (bool, string) {
+	err := bcrypt.CompareHashAndPassword([]byte(providedPassword), []byte(userPassword))
+	check := true
+	msg := ""
+
+	if err != nil {
+		msg = fmt.Sprintf("email of password is incorrect")
+		check = false
+	}
+
+	return check, msg
+}
+
 func SignUp() gin.HandlerFunc {
 	return func(c *gin.Context) {
 
@@ -50,6 +71,10 @@ func SignUp() gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error checking email"})
 			return
 		}
+
+		// hash password
+		password := HashPassword(*user.Password)
+		user.Password = &password
 
 		// Check phone
 		phoneCount, err := userCollection.CountDocuments(ctx, bson.M{
@@ -120,8 +145,14 @@ func Login() gin.HandlerFunc {
 		}
 
 		token, refreshToken, _ := helper.GenerateAllTokens(*foundUser.Email, *foundUser.First_name, *foundUser.Last_name, *foundUser.User_type, foundUser.User_id)
+		helper.UpdateAllTokens(token, refreshToken, foundUser.User_id)
+		err = userCollection.FindOne(ctx, bson.M{"user_id": foundUser.User_id}).Decode(&foundUser)
 
-		// c.JSON(200, gin.H{"success": "Login method"})
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, foundUser)
 	}
 }
 
@@ -156,24 +187,5 @@ func getUser() gin.HandlerFunc {
 func getUsers() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.JSON(200, gin.H{"success": "getUsers method"})
-	}
-}
-
-func HashPassword(password string) string {
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), 14)
-	if err != nil {
-		log.Panic(err)
-	}
-	return string(hashedPassword)
-}
-
-func VerifyPassword(userPassword string, providedPassword string) (bool, string) {
-	err := bcrypt.CompareHashAndPassword([]byte(providedPassword), []byte(userPassword))
-	check := true
-	msg := ""
-
-	if err != nil {
-		msg = "Password is incorrect"
-		check = false
 	}
 }
